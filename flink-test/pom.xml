@@ -25,6 +25,13 @@
             <version>${flink.version}</version>
         </dependency>
 
+        <!-- flink connector -->
+        <dependency>
+            <groupId>org.apache.bahir</groupId>
+            <artifactId>flink-connector-redis_2.11</artifactId>
+            <version>1.0</version>
+        </dependency>
+
         <!-- flink webUI -->
         <dependency>
             <groupId>org.apache.flink</groupId>

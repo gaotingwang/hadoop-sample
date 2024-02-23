@@ -14,6 +14,10 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
 import org.apache.flink.streaming.api.functions.sink.filesystem.rollingpolicies.DefaultRollingPolicy;
+import org.apache.flink.streaming.connectors.redis.RedisSink;
+import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisPoolConfig;
+import org.apache.flink.streaming.connectors.redis.common.mapper.RedisCommandDescription;
+import org.apache.flink.streaming.connectors.redis.common.mapper.RedisMapper;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 
@@ -68,6 +72,33 @@ public class CustomizeSourceApp {
                         .withMaxPartSize(MemorySize.ofMebiBytes(1024)) // 按大小滚
                         .build())
                 .build());
+
+        // redis sink
+        FlinkJedisPoolConfig config = new FlinkJedisPoolConfig.Builder()
+                .setHost("localhost")
+                        .setPort(6379)
+                                .setDatabase(1)
+                                        .build();
+        processSource.getSideOutput(outputTag2).addSink(new RedisSink<Access>(config, new RedisMapper<Access>(){
+
+            @Override
+            public RedisCommandDescription getCommandDescription() {
+                return null;
+            }
+
+            @Override
+            public String getKeyFromData(Access access) {
+                return null;
+            }
+
+            @Override
+            public String getValueFromData(Access access) {
+                return null;
+            }
+
+
+        }));
+
         processSource.getSideOutput(outputTag2).print("2分流");
 
         env.execute("作业名字");
