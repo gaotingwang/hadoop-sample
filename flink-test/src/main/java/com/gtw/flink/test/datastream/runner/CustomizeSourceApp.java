@@ -2,6 +2,7 @@ package com.gtw.flink.test.datastream.runner;
 
 import com.gtw.flink.test.datastream.model.Access;
 import com.gtw.flink.test.datastream.partition.AccessPartitioner;
+import com.gtw.flink.test.datastream.sink.ConsoleSinkFunction;
 import com.gtw.flink.test.datastream.source.ParallelAccessSource;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -51,7 +52,7 @@ public class CustomizeSourceApp {
         });
 
         // 从指定tag中获取
-        processSource.print("主流");
+        processSource.addSink(new ConsoleSinkFunction());
         processSource.getSideOutput(outputTag1).print("1分流");
         processSource.getSideOutput(outputTag2).print("2分流");
 
