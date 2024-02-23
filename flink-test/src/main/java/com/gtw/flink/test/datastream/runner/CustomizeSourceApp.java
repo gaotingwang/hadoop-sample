@@ -7,6 +7,9 @@ import com.gtw.flink.test.datastream.source.ParallelAccessSource;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.serialization.SimpleStringEncoder;
 import org.apache.flink.configuration.MemorySize;
+import org.apache.flink.connector.jdbc.JdbcExecutionOptions;
+import org.apache.flink.connector.jdbc.JdbcConnectionOptions;
+import org.apache.flink.connector.jdbc.JdbcSink;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -31,7 +34,6 @@ public class CustomizeSourceApp {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.AUTOMATIC);
-        env.enableCheckpointing(300);
 
 //        DataStreamSource<Access> source = env.addSource(new AccessSource());
         DataStreamSource<Access> source = env.addSource(new ParallelAccessSource());
@@ -64,7 +66,10 @@ public class CustomizeSourceApp {
         });
 
         // 从指定tag中获取
+        // 终端 sink
         processSource.addSink(new ConsoleSinkFunction());
+
+        // 文件 sink
         processSource.getSideOutput(outputTag1).addSink(StreamingFileSink.<Access>forRowFormat(new Path("out"), new SimpleStringEncoder<>())
                 .withRollingPolicy(DefaultRollingPolicy.builder() // 文件滚动策略
                         .withRolloverInterval(Duration.ofMinutes(15)) // 按时间间隔滚
@@ -74,32 +79,52 @@ public class CustomizeSourceApp {
                 .build());
 
         // redis sink
-        FlinkJedisPoolConfig config = new FlinkJedisPoolConfig.Builder()
-                .setHost("localhost")
-                        .setPort(6379)
-                                .setDatabase(1)
-                                        .build();
-        processSource.getSideOutput(outputTag2).addSink(new RedisSink<Access>(config, new RedisMapper<Access>(){
+//        FlinkJedisPoolConfig config = new FlinkJedisPoolConfig.Builder()
+//                .setHost("localhost")
+//                        .setPort(6379)
+//                                .setDatabase(1)
+//                                        .build();
+//        processSource.getSideOutput(outputTag2).addSink(new RedisSink<Access>(config, new RedisMapper<Access>(){
+//
+//            @Override
+//            public RedisCommandDescription getCommandDescription() {
+//                return null;
+//            }
+//
+//            @Override
+//            public String getKeyFromData(Access access) {
+//                return null;
+//            }
+//
+//            @Override
+//            public String getValueFromData(Access access) {
+//                return null;
+//            }
+//
+//
+//        }));
 
-            @Override
-            public RedisCommandDescription getCommandDescription() {
-                return null;
-            }
-
-            @Override
-            public String getKeyFromData(Access access) {
-                return null;
-            }
-
-            @Override
-            public String getValueFromData(Access access) {
-                return null;
-            }
-
-
-        }));
-
-        processSource.getSideOutput(outputTag2).print("2分流");
+        // MySQL sink
+        processSource.getSideOutput(outputTag2).addSink(JdbcSink.sink(
+                "insert into t_access (time, domain, traffic) values (?, ?, ?) on duplicate key update traffic = ?",
+                (statement, access) -> {
+                    statement.setLong(1, access.getTime());
+                    statement.setString(2, access.getDomain());
+                    statement.setDouble(3, access.getTraffic());
+                    statement.setDouble(4, access.getTraffic());
+                },
+                JdbcExecutionOptions.builder()
+                        .withBatchSize(3)
+                        .withBatchIntervalMs(200)
+                        .withMaxRetries(1)
+                        .build(),
+                new JdbcConnectionOptions.JdbcConnectionOptionsBuilder()
+                        .withUrl("jdbc:mysql://localhost:3306/test")
+                        .withDriverName("com.mysql.cj.jdbc.Driver")
+                        .withUsername("root")
+                        .withPassword("root")
+                        .build()
+        ));
 
         env.execute("作业名字");
 
